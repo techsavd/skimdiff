@@ -1,0 +1,75 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use anyhow::{bail, Context, Result};
+
+use crate::diff::{parse_patch, synthetic_added, FileDiff};
+
+pub struct Repo {
+    pub root: PathBuf,
+}
+
+impl Repo {
+    /// Find the repo containing `dir`, erroring outside any git repo.
+    pub fn discover(dir: &Path) -> Result<Repo> {
+        let out = Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(dir)
+            .output()
+            .context("running git")?;
+        if !out.status.success() {
+            bail!("not a git repository: {}", dir.display());
+        }
+        let root = PathBuf::from(String::from_utf8(out.stdout)?.trim());
+        Ok(Repo { root })
+    }
+
+    pub fn git(&self, args: &[&str]) -> Result<String> {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(&self.root)
+            .output()
+            .context("running git")?;
+        if !out.status.success() {
+            bail!(
+                "git {} failed: {}",
+                args.join(" "),
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+
+    /// Staged + unstaged changes vs HEAD, plus untracked files as all-added.
+    pub fn worktree_diff(&self) -> Result<Vec<FileDiff>> {
+        let patch = self.git(&["diff", "HEAD", "--patch", "--no-color", "--find-renames"])?;
+        let mut files = parse_patch(&patch);
+        for path in self.untracked()? {
+            let full = self.root.join(&path);
+            match fs::read(&full) {
+                Ok(bytes) => match String::from_utf8(bytes) {
+                    Ok(text) => files.push(synthetic_added(&path, &text)),
+                    Err(_) => {
+                        let mut f = synthetic_added(&path, "");
+                        f.is_binary = true;
+                        files.push(f);
+                    }
+                },
+                Err(_) => continue, // vanished between listing and read
+            }
+        }
+        Ok(files)
+    }
+
+    /// Diff for an arbitrary range/commit, e.g. "main..feat", "HEAD~3", a sha.
+    pub fn range_diff(&self, range: &str) -> Result<Vec<FileDiff>> {
+        let patch = self.git(&["diff", "--patch", "--no-color", "--find-renames", range])?;
+        Ok(parse_patch(&patch))
+    }
+
+    fn untracked(&self) -> Result<Vec<String>> {
+        let out = self.git(&["ls-files", "--others", "--exclude-standard"])?;
+        Ok(out.lines().map(|s| s.to_string()).collect())
+    }
+}
