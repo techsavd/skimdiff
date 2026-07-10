@@ -3,10 +3,14 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::http::{header, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::get;
 use axum::{Json, Router};
+use futures::StreamExt;
 use rust_embed::RustEmbed;
 use serde_json::json;
+use tokio::sync::broadcast;
+use tokio_stream::wrappers::BroadcastStream;
 
 use crate::gitx::Repo;
 
@@ -17,19 +21,31 @@ struct Assets;
 pub struct AppState {
     pub repo: Repo,
     pub range: Option<String>,
+    pub events: broadcast::Sender<()>,
 }
 
 impl AppState {
     pub fn new(repo: Repo, range: Option<String>) -> Arc<AppState> {
-        Arc::new(AppState { repo, range })
+        let (events, _) = broadcast::channel(64);
+        Arc::new(AppState { repo, range, events })
     }
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/api/diff", get(api_diff))
+        .route("/api/events", get(api_events))
         .fallback(static_asset)
         .with_state(state)
+}
+
+async fn api_events(
+    State(state): State<Arc<AppState>>,
+) -> Sse<impl futures::Stream<Item = Result<Event, std::convert::Infallible>>> {
+    let rx = state.events.subscribe();
+    let stream = BroadcastStream::new(rx)
+        .filter_map(|msg| futures::future::ready(msg.ok().map(|_| Ok(Event::default().data("change")))));
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 async fn api_diff(State(state): State<Arc<AppState>>) -> Response {

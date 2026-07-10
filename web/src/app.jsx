@@ -6,6 +6,17 @@ export function App() {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
   const [split, setSplit] = useState(true);
+  const [theme, setTheme] = useState(
+    () =>
+      localStorage.getItem('skimdiff-theme') ||
+      (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  );
+  const [live, setLive] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('skimdiff-theme', theme);
+  }, [theme]);
 
   const load = () =>
     fetch('/api/diff')
@@ -20,6 +31,16 @@ export function App() {
   useEffect(() => {
     load();
   }, []);
+
+  // live mode: refresh when the server reports working-tree changes
+  useEffect(() => {
+    if (!data || data.mode !== 'live') return;
+    const es = new EventSource('/api/events');
+    es.onopen = () => setLive(true);
+    es.onerror = () => setLive(false);
+    es.onmessage = () => load();
+    return () => es.close();
+  }, [data?.mode]);
 
   const files = data?.files ?? [];
   const current = files.find((f) => f.path === selected) ?? files[0] ?? null;
@@ -45,7 +66,17 @@ export function App() {
       <aside class="sidebar">
         <header>
           <span class="logo">skimdiff</span>
-          <span class="mode">{data.mode === 'live' ? 'working tree' : data.range}</span>
+          <span class="mode">
+            {data.mode === 'live' ? 'working tree' : data.range}
+            {data.mode === 'live' && <span class={`dot ${live ? 'on' : ''}`} title={live ? 'live' : 'disconnected'} />}
+          </span>
+          <button
+            class="themebtn"
+            title="toggle theme"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          >
+            {theme === 'dark' ? '☀' : '☾'}
+          </button>
         </header>
         <ul class="filelist">
           {files.map((f) => (

@@ -30,7 +30,17 @@ async fn main() -> Result<()> {
     let repo = Repo::discover(&std::env::current_dir()?)?;
     println!("repo: {}", repo.root.display());
 
-    let app = router(AppState::new(repo, cli.range.clone()));
+    let root = repo.root.clone();
+    let state = AppState::new(repo, cli.range.clone());
+
+    // live mode: refresh browsers when the working tree changes
+    let _watcher = if cli.range.is_none() {
+        Some(skimdiff::watch::start_watcher(root, state.events.clone())?)
+    } else {
+        None
+    };
+
+    let app = router(state);
 
     let listener = match tokio::net::TcpListener::bind(("127.0.0.1", cli.port)).await {
         Ok(l) => l,

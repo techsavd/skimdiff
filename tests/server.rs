@@ -75,6 +75,36 @@ async fn api_diff_range_mode_uses_fixed_range() {
 }
 
 #[tokio::test]
+async fn sse_stream_delivers_change_events() {
+    use futures::StreamExt;
+
+    let tmp = fixture_repo();
+    let repo = Repo::discover(tmp.path()).unwrap();
+    let state = AppState::new(repo, None);
+    let events = state.events.clone();
+    let app = router(state);
+
+    let res = app
+        .oneshot(Request::builder().uri("/api/events").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let ct = res.headers()["content-type"].to_str().unwrap();
+    assert!(ct.contains("text/event-stream"), "got {ct}");
+
+    events.send(()).unwrap();
+
+    let mut stream = res.into_body().into_data_stream();
+    let chunk = tokio::time::timeout(std::time::Duration::from_secs(2), stream.next())
+        .await
+        .expect("event within 2s")
+        .expect("stream open")
+        .unwrap();
+    let text = String::from_utf8_lossy(&chunk);
+    assert!(text.contains("change"), "got {text}");
+}
+
+#[tokio::test]
 async fn index_html_is_served() {
     let tmp = fixture_repo();
     let repo = Repo::discover(tmp.path()).unwrap();

@@ -1,15 +1,55 @@
-:root {
+:root,
+:root[data-theme='dark'] {
   --bg: #0d1117;
   --bg2: #161b22;
   --border: #30363d;
   --fg: #e6edf3;
   --dim: #8b949e;
   --accent: #58a6ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --amber: #d29922;
   --add-bg: rgba(46, 160, 67, 0.15);
   --add-strong: rgba(46, 160, 67, 0.4);
   --del-bg: rgba(248, 81, 73, 0.15);
   --del-strong: rgba(248, 81, 73, 0.4);
+  --hover: rgba(255, 255, 255, 0.04);
+  --void: rgba(255, 255, 255, 0.02);
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-comment: #8b949e;
+  --hl-func: #d2a8ff;
+  --hl-type: #ffa657;
+  --hl-attr: #79c0ff;
+  --hl-tag: #7ee787;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --bg2: #f6f8fa;
+  --border: #d1d9e0;
+  --fg: #1f2328;
+  --dim: #59636e;
+  --accent: #0969da;
+  --green: #1a7f37;
+  --red: #cf222e;
+  --amber: #9a6700;
+  --add-bg: rgba(31, 136, 61, 0.12);
+  --add-strong: rgba(31, 136, 61, 0.3);
+  --del-bg: rgba(207, 34, 46, 0.1);
+  --del-strong: rgba(207, 34, 46, 0.28);
+  --hover: rgba(0, 0, 0, 0.04);
+  --void: rgba(0, 0, 0, 0.02);
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-comment: #59636e;
+  --hl-func: #8250df;
+  --hl-type: #953800;
+  --hl-attr: #0550ae;
+  --hl-tag: #116329;
 }
 
 * { box-sizing: border-box; margin: 0; }
@@ -43,7 +83,28 @@ body {
 }
 
 .logo { font-weight: 700; color: var(--accent); }
-.mode { color: var(--dim); font-size: 11px; }
+.mode { color: var(--dim); font-size: 11px; flex: 1; }
+
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dim);
+  margin-left: 6px;
+}
+.dot.on { background: var(--green); }
+
+.themebtn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 1px 7px;
+}
+.themebtn:hover { border-color: var(--accent); }
 
 .filelist {
   list-style: none;
@@ -61,8 +122,8 @@ body {
   white-space: nowrap;
 }
 
-.filelist li:hover { background: rgba(255, 255, 255, 0.04); }
-.filelist li.active { background: rgba(88, 166, 255, 0.12); }
+.filelist li:hover { background: var(--hover); }
+.filelist li.active { background: rgba(88, 166, 255, 0.14); }
 .filelist li.empty { color: var(--dim); cursor: default; }
 
 .fname { overflow: hidden; text-overflow: ellipsis; flex: 1; font-family: var(--mono); font-size: 12px; }
@@ -76,14 +137,14 @@ body {
   border-radius: 3px;
   flex: none;
 }
-.badge.added { color: #3fb950; background: var(--add-bg); }
-.badge.modified { color: #d29922; background: rgba(210, 153, 34, 0.15); }
-.badge.deleted { color: #f85149; background: var(--del-bg); }
+.badge.added { color: var(--green); background: var(--add-bg); }
+.badge.modified { color: var(--amber); background: rgba(210, 153, 34, 0.15); }
+.badge.deleted { color: var(--red); background: var(--del-bg); }
 .badge.renamed { color: var(--accent); background: rgba(88, 166, 255, 0.12); }
 
 .counts { font-family: var(--mono); font-size: 11px; flex: none; }
-.plus { color: #3fb950; margin-right: 4px; }
-.minus { color: #f85149; }
+.plus { color: var(--green); margin-right: 4px; }
+.minus { color: var(--red); }
 
 .hints {
   padding: 8px 14px;
@@ -95,7 +156,7 @@ body {
 .content { flex: 1; min-width: 0; padding: 16px; }
 
 .msg { padding: 40px; color: var(--dim); text-align: center; }
-.msg.err { color: #f85149; }
+.msg.err { color: var(--red); }
 
 .fileheader {
   display: flex;
@@ -103,8 +164,7 @@ body {
   gap: 10px;
   padding: 10px 12px;
   background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 6px 6px 0 0;
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 2;
@@ -146,28 +206,34 @@ body {
   border-right: 1px solid var(--border);
 }
 
-.sign { width: 1%; user-select: none; color: var(--dim); }
+.sign { width: 1%; user-select: none; }
 
 .code { white-space: pre-wrap; word-break: break-all; }
 
+/* added / deleted lines: tinted background + green/red text */
 .unified tr.add { background: var(--add-bg); }
 .unified tr.del { background: var(--del-bg); }
+.unified tr.add .code, .unified tr.add .sign { color: var(--green); }
+.unified tr.del .code, .unified tr.del .sign { color: var(--red); }
 
 .split .half { width: 49%; }
-.split .code.add { background: var(--add-bg); }
-.split .code.del { background: var(--del-bg); }
-.split .code.void { background: rgba(255, 255, 255, 0.02); }
+.split .code.add { background: var(--add-bg); color: var(--green); }
+.split .code.del { background: var(--del-bg); color: var(--red); }
+.split .code.void { background: var(--void); }
 
 tr.add .chg, .code.add .chg { background: var(--add-strong); border-radius: 2px; }
 tr.del .chg, .code.del .chg { background: var(--del-strong); border-radius: 2px; }
 
-/* highlight.js — minimal dark palette */
-.hljs-keyword, .hljs-literal, .hljs-built_in { color: #ff7b72; }
-.hljs-string, .hljs-regexp { color: #a5d6ff; }
-.hljs-number { color: #79c0ff; }
-.hljs-comment, .hljs-doctag { color: #8b949e; font-style: italic; }
-.hljs-title, .hljs-function .hljs-title, .hljs-title.function_ { color: #d2a8ff; }
-.hljs-title.class_, .hljs-type { color: #ffa657; }
-.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: #79c0ff; }
-.hljs-meta, .hljs-tag { color: #7ee787; }
-.hljs-name { color: #7ee787; }
+/* highlight.js palette (context lines) */
+.hljs-keyword, .hljs-literal, .hljs-built_in { color: var(--hl-keyword); }
+.hljs-string, .hljs-regexp { color: var(--hl-string); }
+.hljs-number { color: var(--hl-number); }
+.hljs-comment, .hljs-doctag { color: var(--hl-comment); font-style: italic; }
+.hljs-title, .hljs-function .hljs-title, .hljs-title.function_ { color: var(--hl-func); }
+.hljs-title.class_, .hljs-type { color: var(--hl-type); }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: var(--hl-attr); }
+.hljs-meta, .hljs-tag, .hljs-name { color: var(--hl-tag); }
+
+/* on colored lines let the green/red win over token colors */
+tr.add .code [class^='hljs'], .code.add [class^='hljs'] { color: var(--green); }
+tr.del .code [class^='hljs'], .code.del [class^='hljs'] { color: var(--red); }
