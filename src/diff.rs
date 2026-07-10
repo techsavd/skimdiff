@@ -230,6 +230,32 @@ pub fn synthetic_added(path: &str, content: &str) -> FileDiff {
     }
 }
 
+/// Reconstruct a minimal applyable patch containing just one hunk.
+pub fn hunk_patch(file: &FileDiff, hunk_idx: usize) -> Option<String> {
+    let h = file.hunks.get(hunk_idx)?;
+    let old = file.old_path.as_deref().unwrap_or(&file.path);
+    let (from, to) = match file.status {
+        FileStatus::Added => ("/dev/null".to_string(), format!("b/{}", file.path)),
+        FileStatus::Deleted => (format!("a/{}", file.path), "/dev/null".to_string()),
+        _ => (format!("a/{old}"), format!("b/{}", file.path)),
+    };
+    let mut p = format!(
+        "diff --git a/{} b/{}\n--- {}\n+++ {}\n@@ -{},{} +{},{} @@\n",
+        old, file.path, from, to, h.old_start, h.old_lines, h.new_start, h.new_lines
+    );
+    for l in &h.lines {
+        let sign = match l.kind {
+            LineKind::Context => ' ',
+            LineKind::Add => '+',
+            LineKind::Del => '-',
+        };
+        p.push(sign);
+        p.push_str(&l.content);
+        p.push('\n');
+    }
+    Some(p)
+}
+
 /// "a/Old.java b/New.java" -> ("Old.java", "New.java")
 fn split_git_paths(rest: &str) -> (String, String) {
     if let Some(idx) = rest.find(" b/") {

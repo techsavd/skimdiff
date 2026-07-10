@@ -146,6 +146,47 @@ body {
 .plus { color: var(--green); margin-right: 4px; }
 .minus { color: var(--red); }
 
+.check { color: var(--green); margin-right: 5px; }
+.filelist li.viewed .fname { opacity: 0.55; }
+
+.viewedbox {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dim);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.notebox input {
+  width: 100%;
+  background: var(--bg);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+  font: 12px var(--mono);
+  padding: 6px 12px;
+  outline: none;
+}
+.notebox input::placeholder { color: var(--dim); opacity: 0.6; }
+
+.hunkheader { display: flex; align-items: center; justify-content: space-between; }
+
+.hunkactions button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 6px;
+  margin-left: 6px;
+}
+.hunkactions button:hover { border-color: var(--accent); color: var(--accent); }
+.hunkactions button.danger:hover { border-color: var(--red); color: var(--red); }
+
 .hints {
   padding: 8px 14px;
   color: var(--dim);

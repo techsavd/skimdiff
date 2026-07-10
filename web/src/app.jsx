@@ -18,6 +18,8 @@ export function App() {
     localStorage.setItem('skimdiff-theme', theme);
   }, [theme]);
 
+  const [review, setReview] = useState({});
+
   const load = () =>
     fetch('/api/diff')
       .then((r) => r.json())
@@ -28,8 +30,37 @@ export function App() {
       })
       .catch((e) => setError(String(e)));
 
+  const loadReview = () =>
+    fetch('/api/state')
+      .then((r) => r.json())
+      .then((s) => setReview(s.files ?? {}));
+
+  const postReview = (path, patch) =>
+    fetch('/api/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, ...patch }),
+    })
+      .then((r) => r.json())
+      .then((s) => setReview(s.files ?? {}));
+
+  const hunkAction = (path, hunk, action) => {
+    if (action === 'discard' && !confirm(`Discard this hunk in ${path}? This rewrites the file on disk.`)) return;
+    fetch('/api/hunk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, hunk, action }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.error) alert(res.error);
+        load();
+      });
+  };
+
   useEffect(() => {
     load();
+    loadReview();
   }, []);
 
   // live mode: refresh when the server reports working-tree changes
@@ -53,10 +84,12 @@ export function App() {
       if (e.key === 'p' && idx > 0) setSelected(files[idx - 1].path);
       if (e.key === 'u') setSplit((s) => !s);
       if (e.key === 'j' || e.key === 'k') jumpHunk(e.key === 'j' ? 1 : -1);
+      if (e.key === 'v' && current)
+        postReview(current.path, { viewed: !review[current.path]?.viewed });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [files, current]);
+  }, [files, current, review]);
 
   if (error) return <div class="msg err">{error}</div>;
   if (!data) return <div class="msg">loading…</div>;
@@ -80,15 +113,28 @@ export function App() {
         </header>
         <ul class="filelist">
           {files.map((f) => (
-            <FileItem key={f.path} f={f} active={current && f.path === current.path} onClick={() => setSelected(f.path)} />
+            <FileItem
+              key={f.path}
+              f={f}
+              active={current && f.path === current.path}
+              viewed={review[f.path]?.viewed}
+              onClick={() => setSelected(f.path)}
+            />
           ))}
           {files.length === 0 && <li class="empty">no changes</li>}
         </ul>
-        <footer class="hints">n/p file · j/k hunk · u split</footer>
+        <footer class="hints">n/p file · j/k hunk · v viewed · u split</footer>
       </aside>
       <main class="content">
         {current ? (
-          <FileDiff f={current} split={split} />
+          <FileDiff
+            f={current}
+            split={split}
+            live={data.mode === 'live'}
+            rev={review[current.path]}
+            onReview={(patch) => postReview(current.path, patch)}
+            onHunk={(i, action) => hunkAction(current.path, i, action)}
+          />
         ) : (
           <div class="msg">nothing to review — working tree is clean</div>
         )}
@@ -106,18 +152,19 @@ function stats(f) {
   return { add, del };
 }
 
-function FileItem({ f, active, onClick }) {
+function FileItem({ f, active, viewed, onClick }) {
   const { add, del } = stats(f);
   const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/') + 1) : '';
   const base = f.path.slice(dir.length);
   return (
-    <li class={active ? 'active' : ''} onClick={onClick} title={f.path}>
+    <li class={`${active ? 'active' : ''} ${viewed ? 'viewed' : ''}`} onClick={onClick} title={f.path}>
       <span class={`badge ${f.status}`}>{f.status[0].toUpperCase()}</span>
       <span class="fname">
         {dir && <span class="dir">{dir}</span>}
         {base}
       </span>
       <span class="counts">
+        {viewed && <span class="check">✓</span>}
         {add > 0 && <span class="plus">+{add}</span>}
         {del > 0 && <span class="minus">−{del}</span>}
       </span>
@@ -125,7 +172,7 @@ function FileItem({ f, active, onClick }) {
   );
 }
 
-function FileDiff({ f, split }) {
+function FileDiff({ f, split, live, rev, onReview, onHunk }) {
   const lang = langFor(f.path);
   return (
     <div class="filediff" data-path={f.path}>
@@ -134,16 +181,50 @@ function FileDiff({ f, split }) {
         <span class="path">
           {f.old_path ? `${f.old_path} → ${f.path}` : f.path}
         </span>
+        <label class="viewedbox">
+          <input
+            type="checkbox"
+            checked={!!rev?.viewed}
+            onChange={(e) => onReview({ viewed: e.currentTarget.checked })}
+          />
+          viewed
+        </label>
       </div>
+      <NoteBox note={rev?.note ?? ''} onSave={(note) => onReview({ note })} />
       {f.is_binary && <div class="msg">binary file</div>}
       {f.hunks.map((h, i) => (
         <div class="hunk" key={i}>
           <div class="hunkheader">
-            @@ −{h.old_start},{h.old_lines} +{h.new_start},{h.new_lines} @@ {h.header}
+            <span>
+              @@ −{h.old_start},{h.old_lines} +{h.new_start},{h.new_lines} @@ {h.header}
+            </span>
+            {live && (
+              <span class="hunkactions">
+                <button onClick={() => onHunk(i, 'stage')} title="git add this hunk">stage</button>
+                <button class="danger" onClick={() => onHunk(i, 'discard')} title="revert this hunk on disk">discard</button>
+              </span>
+            )}
           </div>
           {split ? <SplitHunk h={h} lang={lang} /> : <UnifiedHunk h={h} lang={lang} />}
         </div>
       ))}
+    </div>
+  );
+}
+
+function NoteBox({ note, onSave }) {
+  const [val, setVal] = useState(note);
+  useEffect(() => setVal(note), [note]);
+  return (
+    <div class="notebox">
+      <input
+        type="text"
+        placeholder="review note…"
+        value={val}
+        onInput={(e) => setVal(e.currentTarget.value)}
+        onBlur={() => val !== note && onSave(val)}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      />
     </div>
   );
 }

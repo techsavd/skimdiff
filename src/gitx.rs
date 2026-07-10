@@ -68,6 +68,54 @@ impl Repo {
         Ok(parse_patch(&patch))
     }
 
+    /// Absolute path of the .git directory (handles worktrees).
+    pub fn git_dir(&self) -> Result<std::path::PathBuf> {
+        Ok(std::path::PathBuf::from(
+            self.git(&["rev-parse", "--absolute-git-dir"])?.trim(),
+        ))
+    }
+
+    pub fn add(&self, path: &str) -> Result<()> {
+        self.git(&["add", "--", path]).map(|_| ())
+    }
+
+    pub fn is_tracked(&self, path: &str) -> bool {
+        self.git(&["ls-files", "--error-unmatch", "--", path]).is_ok()
+    }
+
+    /// Apply a patch via stdin. `cached` targets the index (stage),
+    /// `reverse` reverse-applies to the working tree (discard).
+    pub fn apply_patch(&self, patch: &str, cached: bool, reverse: bool) -> Result<()> {
+        use std::io::Write;
+        use std::process::Stdio;
+        let mut args = vec!["apply"];
+        if cached {
+            args.push("--cached");
+        }
+        if reverse {
+            args.push("--reverse");
+        }
+        args.push("-");
+        let mut child = Command::new("git")
+            .args(&args)
+            .current_dir(&self.root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("spawning git apply")?;
+        child
+            .stdin
+            .as_mut()
+            .expect("piped stdin")
+            .write_all(patch.as_bytes())?;
+        let out = child.wait_with_output()?;
+        if !out.status.success() {
+            bail!("git apply failed: {}", String::from_utf8_lossy(&out.stderr));
+        }
+        Ok(())
+    }
+
     fn untracked(&self) -> Result<Vec<String>> {
         let out = self.git(&["ls-files", "--others", "--exclude-standard"])?;
         Ok(out.lines().map(|s| s.to_string()).collect())
