@@ -1,6 +1,6 @@
 [package]
 name = "skimdiff"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Lightweight browser-based review of agent-made code changes: live diffs, review state, tree-sitter find-usages"
 license = "MIT"
