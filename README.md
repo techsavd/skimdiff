@@ -25,7 +25,13 @@ skimdiff HEAD~3          # review the last 3 commits
 - **Keyboard-first** — `n`/`p` file, `j`/`k` hunk, `v` viewed, `u` toggle
   split, `Esc` close panels.
 
-## Build
+## Install
+
+```bash
+brew install techsavd/tap/skimdiff     # macOS (Apple Silicon)
+```
+
+## Build from source
 
 Requires Rust and Node (frontend is embedded into the binary at build time):
 
