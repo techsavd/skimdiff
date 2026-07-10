@@ -105,6 +105,47 @@ async fn sse_stream_delivers_change_events() {
 }
 
 #[tokio::test]
+async fn usages_endpoint_finds_declarations_and_references() {
+    let tmp = fixture_repo();
+    fs::write(tmp.path().join("A.java"), "class A {\n    void hit() {}\n}\n").unwrap();
+    fs::write(
+        tmp.path().join("B.java"),
+        "class B {\n    void go(A a) {\n        a.hit();\n    }\n}\n",
+    )
+    .unwrap();
+
+    let repo = Repo::discover(tmp.path()).unwrap();
+    let app = router(AppState::new(repo, None));
+
+    let v = get_json(app, "/api/usages?name=hit").await;
+    assert_eq!(v["declarations"].as_array().unwrap().len(), 1);
+    assert_eq!(v["declarations"][0]["path"], "A.java");
+    assert_eq!(v["references"].as_array().unwrap().len(), 1);
+    assert_eq!(v["references"][0]["path"], "B.java");
+}
+
+#[tokio::test]
+async fn file_endpoint_returns_content_and_rejects_escapes() {
+    let tmp = fixture_repo();
+    let repo = Repo::discover(tmp.path()).unwrap();
+    let app = router(AppState::new(repo, None));
+
+    let v = get_json(app.clone(), "/api/file?path=Main.java").await;
+    assert!(v["content"].as_str().unwrap().contains("class Main"));
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/file?path=../outside.txt")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 400);
+}
+
+#[tokio::test]
 async fn index_html_is_served() {
     let tmp = fixture_repo();
     let repo = Repo::discover(tmp.path()).unwrap();

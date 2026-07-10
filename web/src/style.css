@@ -265,6 +265,78 @@ body {
 tr.add .chg, .code.add .chg { background: var(--add-strong); border-radius: 2px; }
 tr.del .chg, .code.del .chg { background: var(--del-strong); border-radius: 2px; }
 
+/* usages panel */
+.usages {
+  width: 340px;
+  flex: none;
+  border-left: 1px solid var(--border);
+  background: var(--bg2);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.usages header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.uname { color: var(--accent); font-weight: 700; }
+.usec { padding: 8px 0; }
+.utitle {
+  padding: 4px 14px;
+  color: var(--dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.uitem { padding: 5px 14px; cursor: pointer; }
+.uitem:hover { background: var(--hover); }
+.uloc { display: block; color: var(--accent); font: 11px var(--mono); }
+.uctx {
+  display: block;
+  color: var(--fg);
+  font: 11px var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.uempty { padding: 2px 14px; color: var(--dim); font-size: 11px; }
+
+/* file viewer overlay */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fileviewer {
+  width: min(920px, 92vw);
+  height: 86vh;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.fileviewer header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.fileviewer .path { font: 600 13px var(--mono); }
+.fvbody { overflow: auto; flex: 1; }
+.fvbody tr.target td { background: rgba(88, 166, 255, 0.15); }
+
 /* highlight.js palette (context lines) */
 .hljs-keyword, .hljs-literal, .hljs-built_in { color: var(--hl-keyword); }
 .hljs-string, .hljs-regexp { color: var(--hl-string); }

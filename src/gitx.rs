@@ -116,6 +116,14 @@ impl Repo {
         Ok(())
     }
 
+    /// Tracked plus untracked (non-ignored) files, repo-relative.
+    pub fn all_files(&self) -> Result<Vec<String>> {
+        let tracked = self.git(&["ls-files"])?;
+        let mut files: Vec<String> = tracked.lines().map(|s| s.to_string()).collect();
+        files.extend(self.untracked()?);
+        Ok(files)
+    }
+
     fn untracked(&self) -> Result<Vec<String>> {
         let out = self.git(&["ls-files", "--others", "--exclude-standard"])?;
         Ok(out.lines().map(|s| s.to_string()).collect())

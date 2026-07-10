@@ -58,10 +58,39 @@ export function App() {
       });
   };
 
+  const [usages, setUsages] = useState(null); // { name, declarations, references }
+  const [viewer, setViewer] = useState(null); // { path, line }
+
+  const openUsages = (name) =>
+    fetch(`/api/usages?name=${encodeURIComponent(name)}`)
+      .then((r) => r.json())
+      .then((u) => setUsages({ name, ...u }));
+
   useEffect(() => {
     load();
     loadReview();
   }, []);
+
+  // double-click any identifier to look it up
+  useEffect(() => {
+    const onDbl = (e) => {
+      if (!e.target.closest('.code, .fileviewer')) return;
+      const word = (getSelection()?.toString() ?? '').trim();
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(word)) openUsages(word);
+    };
+    document.addEventListener('dblclick', onDbl);
+    return () => document.removeEventListener('dblclick', onDbl);
+  }, []);
+
+  useEffect(() => {
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      if (viewer) setViewer(null);
+      else setUsages(null);
+    };
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [viewer]);
 
   // live mode: refresh when the server reports working-tree changes
   useEffect(() => {
@@ -123,7 +152,7 @@ export function App() {
           ))}
           {files.length === 0 && <li class="empty">no changes</li>}
         </ul>
-        <footer class="hints">n/p file · j/k hunk · v viewed · u split</footer>
+        <footer class="hints">n/p file · j/k hunk · v viewed · u split · 2×click symbol</footer>
       </aside>
       <main class="content">
         {current ? (
@@ -139,6 +168,83 @@ export function App() {
           <div class="msg">nothing to review — working tree is clean</div>
         )}
       </main>
+      {usages && (
+        <UsagesPanel
+          u={usages}
+          onClose={() => setUsages(null)}
+          onOpen={(path, line) => setViewer({ path, line })}
+        />
+      )}
+      {viewer && <FileViewer path={viewer.path} line={viewer.line} onClose={() => setViewer(null)} />}
+    </div>
+  );
+}
+
+function UsagesPanel({ u, onClose, onOpen }) {
+  const section = (title, items) => (
+    <div class="usec">
+      <div class="utitle">{title} ({items.length})</div>
+      {items.map((s, i) => (
+        <div class="uitem" key={i} onClick={() => onOpen(s.path, s.line)}>
+          <span class="uloc">{s.path}:{s.line}</span>
+          <code class="uctx">{s.context}</code>
+        </div>
+      ))}
+      {items.length === 0 && <div class="uempty">none</div>}
+    </div>
+  );
+  return (
+    <aside class="usages">
+      <header>
+        <code class="uname">{u.name}</code>
+        <button class="themebtn" onClick={onClose}>✕</button>
+      </header>
+      {section('Declarations', u.declarations)}
+      {section('Usages', u.references)}
+    </aside>
+  );
+}
+
+function FileViewer({ path, line, onClose }) {
+  const [content, setContent] = useState(null);
+  const lang = langFor(path);
+  useEffect(() => {
+    setContent(null);
+    fetch(`/api/file?path=${encodeURIComponent(path)}`)
+      .then((r) => r.json())
+      .then((f) => setContent(f.error ? `error: ${f.error}` : f.content));
+  }, [path]);
+  useEffect(() => {
+    if (content != null)
+      document.querySelector('.fileviewer .target')?.scrollIntoView({ block: 'center' });
+  }, [content]);
+  return (
+    <div class="overlay" onClick={(e) => e.target.classList.contains('overlay') && onClose()}>
+      <div class="fileviewer">
+        <header>
+          <span class="path">{path}</span>
+          <button class="themebtn" onClick={onClose}>✕</button>
+        </header>
+        <div class="fvbody">
+          {content == null ? (
+            <div class="msg">loading…</div>
+          ) : (
+            <table class="difftable">
+              {content.split('\n').map((l, i) => {
+                const html = highlightLine(l, lang);
+                return (
+                  <tr key={i} class={i + 1 === line ? 'target' : ''}>
+                    <td class="no">{i + 1}</td>
+                    <td class="code">
+                      {html !== null ? <span dangerouslySetInnerHTML={{ __html: html }} /> : <span>{l}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
